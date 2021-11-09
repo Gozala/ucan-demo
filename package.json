@@ -1,0 +1,21 @@
+{
+  "name": "ucan-demo",
+  "private": true,
+  "description": "UCAN demo",
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "@web-std/fetch": "^3.0.0",
+    "@web-std/stream": "^1.0.0",
+    "subprogram": "1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "16.11.6",
+    "typescript": "4.4.4"
+  },
+  "engines": {
+    "node": ">=16.13.0"
+  }
+}
