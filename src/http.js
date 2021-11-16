@@ -118,6 +118,12 @@ class RequestEvent {
     this.outgoing = outgoing
     this.writeResponse = this.writeResponse.bind(this)
     incoming
+
+    Object.defineProperties(this, {
+      incoming: { enumerable: false },
+      outgoing: { enumerable: false },
+      writeResponse: { enumerable: false },
+    })
   }
   get request() {
     const { incoming } = this
@@ -135,7 +141,7 @@ class RequestEvent {
     })
 
     Object.defineProperties(this, {
-      request: { value: request },
+      request: { value: request, enumerable: true },
     })
 
     return request

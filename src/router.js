@@ -1,61 +1,96 @@
 import { Response } from "./http.js"
 
 /**
- * @typedef {Object} RequestContext
- * @property {URL} url
- * @property {Request} request
+ *
+ * @param {Request} request
  */
 
-/**
- * @template R
- * @typedef {Response & {json():Promise<R>}} JSONResponse
- */
-
-/**
- * @template {Object} R
- * @param {Record<string, (request:RequestContext) => Promise<R>>} handlers
- * @returns {(request:Request) => Promise<JSONResponse<R>>}
- */
-export const router = handlers => async request => {
-  const headers = {
-    ...cors(request.url),
-    "Content-Type": "application/json",
+export const cors = request => {
+  const { headers } = request
+  return {
+    "Access-Control-Allow-Origin": headers.get("origin") || "*",
+    "Access-Control-Allow-Methods": "HEAD, GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers":
+      headers.get("Access-Control-Request-Headers") || "",
+    "Access-Control-Expose-Headers": "Link",
   }
-  try {
-    const url = new URL(request.url)
-    const handler = handlers[url.pathname]
-    const promise = handler
-      ? handler({ url, request })
-      : Promise.reject(
-          Object.assign(new Error(`Unknown request path ${url.pathname}`), {
-            status: 404,
-          })
-        )
-    const value = await promise
+}
 
-    return new Response(
-      JSON.stringify(
-        {
-          ok: true,
-          value,
-        },
-        null,
-        2
-      ),
-      {
-        headers,
-        status: 200,
-      }
-    )
-  } catch (error) {
-    const {
-      name,
-      message,
-      stack,
-      code,
-      status = 500,
-    } = /** @type {Error & { code?: number, status?: number }} */ (error)
-    return new Response(
+/**
+ * @template Params
+ * @template Service
+ * @template Return
+ * @param {(context:{request:Request, service:Service, params:Params}) => Promise<Return> | Return} handler
+ */
+export const json = handler =>
+  route(async context => {
+    const value = await handler(context)
+    return JSONResponse.from(value, {
+      headers: cors(context.request),
+    })
+  })
+
+/**
+ * @template Params
+ * @template Service
+ * @param {(context:{request:Request, service:Service, params:Params}) => Promise<Response> | Response} handler
+ */
+export const route =
+  handler =>
+  /**
+   * @param {Params} params
+   */
+
+  params =>
+  /**
+   *
+   * @param {{service:Service, request:Request}} context
+   * @returns {Promise<Response>}
+   */
+  async context => {
+    const headers = {
+      ...cors(context.request),
+      "Content-Type": "application/json",
+    }
+    try {
+      return await handler({ ...context, params })
+    } catch (error) {
+      return ResponseError.from(
+        /** @type {Error & { code?: number, status?: number }} */ (error),
+        { headers: cors(context.request) }
+      )
+    }
+  }
+
+export class JSONResponse extends Response {
+  /**
+   * @template T
+   * @param {T} data
+   * @param {object} [options]
+   * @param {Record<string, string>} [options.headers]
+   * @param {number} [options.status]
+   */
+  static from(data, { headers = {}, status = 200 } = {}) {
+    return new this(JSON.stringify(data, null, 2), {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+    })
+  }
+}
+
+export class ResponseError extends Response {
+  /**
+   * @param {Error & { code?: number, status?: number }} error
+   * @param {{headers?:Record<string, string>}} [options]
+   */
+  static from(
+    { name, message, stack, code, status = 500 },
+    { headers = {} } = {}
+  ) {
+    return new this(
       JSON.stringify(
         {
           ok: false,
@@ -70,19 +105,9 @@ export const router = handlers => async request => {
         2
       ),
       {
-        status,
         headers,
+        status,
       }
     )
   }
 }
-
-/**
- *
- * @param {string} [origin]
- */
-
-const cors = (origin = "*") => ({
-  "Access-Control-Allow-Origin": origin,
-  "Access-Control-Allow-Methods": "POST, PUT, GET, HEAD, OPTIONS",
-})
