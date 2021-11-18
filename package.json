@@ -19,10 +19,11 @@
     "multiformats": "^9.4.10",
     "subprogram": "^1.2.0",
     "subroute": "^1.0.1",
-    "ucans": "^0.8.0"
+    "ucans": "^0.8.0",
+    "uint8arrays": "3.0.0"
   },
   "devDependencies": {
-    "typescript": "^4.4.4",
+    "typescript": "^4.5.2",
     "uvu": "0.5.2"
   },
   "engines": {

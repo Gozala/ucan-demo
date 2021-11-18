@@ -11,24 +11,31 @@ import {
   rest,
 } from "subroute"
 import * as CAR from "./car.js"
+import * as Auth from "./auth.js"
 import * as Resource from "./resource.js"
 
 export const main = async () => {
   const socket = await HTTP.listen({ port: Number(process.env.PORT || 8080) })
-  const service = await memoryService()
+  const io = await service()
+
   console.log(`Serving ${HTTP.endpoint(socket)}`)
   for await (const event of HTTP.open(socket)) {
-    console.log(">>", event.request.url, event.request.method)
+    console.log(`>> ${event.request.method} ${event.request.url}`)
     const route = match(routes, event.request)
 
-    event.respondWith(route({ ...event, service }))
+    event.respondWith(route({ ...event, service: io }))
   }
 }
 
-const memoryService = async () => {
-  const service = await CAR.memoryService()
-  return service
-}
+/**
+ * @typedef {CAR.Service & Auth.Service} Service
+ * @returns {Promise<Service>}
+ */
+
+const service = async () => ({
+  ...(await CAR.service()),
+  ...(await Auth.service()),
+})
 
 const base = GET`/`(
   router.route(
@@ -47,9 +54,23 @@ const echo = GET`/echo/${{ text }}`(
     }
   })
 )
-const upload = POST`/car`(router.json(CAR.upload))
-const retrieve = GET`/car/${{ cid: text }}`(router.json(CAR.retrieve))
+
+const info = GET`/info`(router.json(Auth.info))
+const authorize = POST`/auth/${{ did: text }}`(router.json(Auth.authorize))
+const revoke = POST`/revoke/${{ cid: text }}`(router.json(Auth.revoke))
+const upload = POST`/uploads/${{ path: rest() }}`(router.json(CAR.upload))
+// const retrieve = GET`/car/${{ cid: text }}`(router.json(CAR.retrieve))
+const list = GET`/uploads/${{ path: rest() }}`(router.json(CAR.listUploads))
+
 const resource = GET`/resource/${{ path: rest() }}`(router.route(Resource.read))
+const cors = OPTIONS`${{ path: rest() }}`(
+  router.route(
+    ({ request }) =>
+      new HTTP.Response("", {
+        headers: router.cors(request),
+      })
+  )
+)
 
 const notFound = route`/${{ path: rest() }}`(
   router.route(({ params: { path }, request }) => {
@@ -70,6 +91,16 @@ const notFound = route`/${{ path: rest() }}`(
   })
 )
 
-const routes = base.or(echo).or(upload).or(retrieve).or(resource).or(notFound)
+const routes = base
+  .or(cors)
+  .or(echo)
+  .or(info)
+  .or(authorize)
+  .or(revoke)
+  .or(upload)
+  .or(list)
+  // .or(retrieve)
+  .or(resource)
+  .or(notFound)
 
 script({ ...import.meta, main, dotenv: true })
