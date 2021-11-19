@@ -29,7 +29,7 @@ export const upload = async ({ params: { path }, request, service }) => {
       {
         cap: "POST",
         id: `/uploads/${path}`,
-        storageLimit: content.size,
+        storageLimit: content.size, // + service.usedSpaceFor(ucan.aud),
       },
       ucan
     )
@@ -159,10 +159,11 @@ const decoders = [pb, raw, cbor]
  * @property {import('ipfs-car/blockstore').Blockstore} blockStore
  * @property {Map<string, { size: number, created: number, cid: string }>} links
  *
+ * @param {Auth.Service} service
  * @returns {Promise<Service>}
  */
-export const service = async () => ({
+export const service = async service => ({
+  ...service,
   blockStore: new MemoryBlockStore(),
   links: new Map(),
-  ...(await Auth.service()),
 })

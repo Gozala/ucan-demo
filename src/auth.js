@@ -1,4 +1,3 @@
-import * as FS from "fs/promises"
 import * as UCAN from "./ucan.js"
 import * as Result from "./result.js"
 import * as raw from "multiformats/codecs/raw"
@@ -34,9 +33,16 @@ export const authenticate = async (headers, service) => {
   const result =
     token == null
       ? fail("Authorization header is required")
+      : token.payload.aud !== service.keypair.did()
+      ? fail(
+          `Authorization is invalid, it is addressed for ${
+            token.payload.aud
+          } instead of ${service.keypair.did()}`
+        )
       : UCAN.isExpired(token)
       ? fail("Authorization token has expired")
       : await validate(token, service)
+
   if (result.ok) {
     return result.value
   } else {
@@ -151,7 +157,7 @@ const check = async ucan => {
 
   // Verify proofs
   const proof = UCAN.decode(ucan.payload.prf)
-  if (proof.payload.aud !== ucan.payload.iss) {
+  if (ucan.payload.iss !== proof.payload.aud) {
     return fail(
       `Token issuer ${ucan.payload.iss} does not match it's proofs audience ${proof.payload.aud}`
     )
@@ -210,51 +216,6 @@ export const revoke = async ({ params: { cid }, request, service }) => {
 }
 
 /**
- * @param {object} context
- * @param {Service} context.service
- */
-export const info = async ({ service }) => {
-  return {
-    ok: true,
-    value: {
-      id: service.keypair.did(),
-    },
-  }
-}
-
-/**
- * @param {URL} url
- */
-const obtainKey = async url => (await importKey(url)) || (await createKey(url))
-
-/**
- * @param {URL} url
- */
-const importKey = async url => {
-  const key = await FS.readFile(asPath(url)).catch(_ => null)
-
-  return key ? UCAN.EdKeypair.fromSecretKey(key.toString()) : null
-}
-
-/**
- *@param {URL} url
- */
-const createKey = async url => {
-  const key = await UCAN.EdKeypair.create({ exportable: true })
-  await FS.writeFile(asPath(url), await key.export())
-  return key
-}
-
-/**
- *
- * @param {URL} url
- * @returns {string}
- */
-const asPath = url =>
-  // @ts-ignore - FS takes URLs just fine
-  url
-
-/**
  * @typedef {object} Service
  * @property {UCAN.EdKeypair} keypair
  * @property {Map<string, string>} users
@@ -263,12 +224,13 @@ const asPath = url =>
  * @property {Set<string>} blockedIssuers
  * @property {Set<string>} sandbox
  *
+ * @param {{ keypair: UCAN.EdKeypair }} options
  * @returns {Promise<Service>}
  */
-export const service = async () => ({
+export const service = async ({ keypair }) => ({
   users: new Map(),
   revoked: new Set(),
   sandbox: new Set(),
   blockedIssuers: new Set(),
-  keypair: await obtainKey(new URL("../service.key", import.meta.url)),
+  keypair,
 })

@@ -1,7 +1,6 @@
 import { Response } from "./http.js"
 
 /**
- *
  * @param {Request} request
  */
 
@@ -15,6 +14,23 @@ export const cors = request => {
     "Access-Control-Expose-Headers": "Link",
   }
 }
+
+/**
+ * @template Params
+ * @template Service
+ * @template {Record<string, string>} Return
+ * @param {(context:{request:Request, service:Service, params:Params}) => Promise<Return> | Return} handler
+ */
+
+export const head = handler =>
+  route(async context => {
+    return new Response("", {
+      headers: {
+        ...cors(context.request),
+        ...(await handler(context)),
+      },
+    })
+  })
 
 /**
  * @template Params
